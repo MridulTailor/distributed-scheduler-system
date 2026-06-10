@@ -2,12 +2,27 @@
 
 A fault-tolerant workload scheduler that allocates sessions across a cluster of nodes. It demonstrates strict service boundaries, atomic capacity enforcement, and load-balanced routing with FastAPI, Docker Compose, and NGINX.
 
+## Motivation
+
+This project is deeply inspired by the technical challenges faced by cloud gaming platforms like **NVIDIA GeForce NOW**. When thousands of players simultaneously request access to a game, the backend infrastructure must instantly assign each player to a dedicated, high-performance GPU server. 
+
+Building such a system requires a scheduler that is incredibly fast, completely fault-tolerant, and capable of handling massive concurrency.
+
+## Use Cases
+
+While modeled after cloud gaming architectures, this pattern applies to any high-throughput, session-based workload distribution:
+- AI inference workloads
+- Render jobs
+- Video encoding
+- CI/CD runners
+- Batch processing
+- Distributed scraping
+
 ## Architecture
 
 ![Architecture Diagram](docs/architecture.png)
 
 The system is composed of four core components:
-
 - **Redis (`6379`)**: The centralized, distributed state store that persists session data and tracks real-time node capacity and health.
 - **Node Manager (`8002`)**: Owns the logic for the nodes. It exposes internal endpoints to allocate and release node capacity atomically via Redis Lua scripts, completely preventing split-brain scheduling.
 - **Scheduler (`8001`, replica on `8003`)**: Handles placement logic and session routing. It queries the Node Manager to find healthy nodes, secures the reservation, and stores the session state globally in Redis. It is load-balanced by NGINX.
@@ -49,7 +64,6 @@ curl -X DELETE http://localhost:8000/sessions/<session_id>
 ```
 
 ## Fault-Tolerance & Distributed System Features
-
 - **Centralized Distributed State**: Schedulers are completely stateless; all active sessions are globally tracked in a shared Redis cluster, allowing seamless horizontal scaling.
 - **Atomic Lua Script Allocations**: Node Manager uses an atomic Redis Lua script to read capacity and increment usage in a single, un-interruptible operation. This prevents "split-brain" over-allocation race conditions even under heavy concurrent load.
 - **Resilient Retry Logic**: If multiple Schedulers try to allocate the same node concurrently and one fails due to capacity constraints (caught by the Lua script), the Scheduler gracefully catches the rejection and retries placement on the next available node.
