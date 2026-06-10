@@ -11,13 +11,15 @@ app = FastAPI()
 import redis.asyncio as redis
 import json
 
-redis_client = redis.from_url("redis://redis:6379", decode_responses=True)
+from config import REDIS_URL, NODE_MANAGER_URL
+
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 @app.post("/sessions")
 async def create_session():
     async with httpx.AsyncClient() as client:
         # 1. Fetch nodes
         try:
-            resp = await client.get("http://node-manager:8002/nodes", timeout=2.0)
+            resp = await client.get(f"{NODE_MANAGER_URL}/nodes", timeout=2.0)
             resp.raise_for_status()
         except Exception as e:
             logger.error("Failed to fetch nodes: %s", e)
@@ -35,7 +37,7 @@ async def create_session():
             node_id = node["id"]
             
             try:
-                reserve_resp = await client.post(f"http://node-manager:8002/nodes/{node_id}/allocate", timeout=2.0)
+                reserve_resp = await client.post(f"{NODE_MANAGER_URL}/nodes/{node_id}/allocate", timeout=2.0)
                 reserve_resp.raise_for_status()
                 
                 resp_data = reserve_resp.json()
@@ -75,7 +77,7 @@ async def delete_session(session_id: str):
     
     async with httpx.AsyncClient() as client:
         try:
-            release_resp = await client.post(f"http://node-manager:8002/nodes/{node_id}/release", timeout=2.0)
+            release_resp = await client.post(f"{NODE_MANAGER_URL}/nodes/{node_id}/release", timeout=2.0)
             release_resp.raise_for_status()
         except Exception as e:
             logger.error("Failed to release capacity on %s for session %s: %s", node_id, session_id, e)

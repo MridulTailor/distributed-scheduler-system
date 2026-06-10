@@ -8,32 +8,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 import redis.asyncio as redis
+from config import REDIS_URL, INITIAL_NODES
+from scripts import ALLOCATE_LUA
 
-redis_client = redis.from_url("redis://redis:6379", decode_responses=True)
-
-INITIAL_NODES = [
-    {"id": "node-1", "capacity": 10, "used": 0, "healthy": "true"},
-    {"id": "node-2", "capacity": 10, "used": 0, "healthy": "true"},
-    {"id": "node-3", "capacity": 10, "used": 0, "healthy": "true"},
-]
-
-ALLOCATE_LUA = """
-local node_key = KEYS[1]
-if redis.call('EXISTS', node_key) == 0 then
-    return -3
-end
-local healthy = redis.call('HGET', node_key, 'healthy')
-if healthy ~= 'true' then
-    return -1
-end
-local capacity = tonumber(redis.call('HGET', node_key, 'capacity'))
-local used = tonumber(redis.call('HGET', node_key, 'used'))
-if used >= capacity then
-    return -2
-end
-redis.call('HINCRBY', node_key, 'used', 1)
-return 0
-"""
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 @app.on_event("startup")
 async def startup_event():

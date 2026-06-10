@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
-SCHEDULER_URL = "http://nginx/scheduler"
+from config import SCHEDULER_URL
 
 @app.post("/sessions")
 async def create_session(request: Request):
