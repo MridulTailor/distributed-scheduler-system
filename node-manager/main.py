@@ -38,12 +38,12 @@ async def allocate_node(node_id: str):
         raise HTTPException(status_code=404, detail="Node not found")
     node = nodes[node_id]
     if not node["healthy"]:
-        raise HTTPException(status_code=400, detail="Node is not healthy")
+        return {"success": False, "reason": "node_unhealthy"}
     if node["used"] >= node["capacity"]:
-        raise HTTPException(status_code=400, detail="Node is at full capacity")
+        return {"success": False, "reason": "capacity_exceeded"}
     
     node["used"] += 1
-    return node
+    return {"success": True, "node": node}
 
 @app.post("/nodes/{node_id}/release")
 async def release_node(node_id: str):
