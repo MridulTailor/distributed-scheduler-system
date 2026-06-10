@@ -61,3 +61,8 @@ curl -X DELETE http://localhost:8000/sessions/<session_id>
 ```bash
 docker compose down
 ```
+## How I used AI in building this project: 
+- Writing tests
+- Generate System Architecture Diagram
+- Refactoring code for clean architecture and better performance
+- Adding documentation
