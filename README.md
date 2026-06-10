@@ -4,6 +4,8 @@ A fault-tolerant workload scheduler that allocates sessions across a cluster of 
 
 ## Architecture
 
+![Architecture Diagram](docs/architecture.png)
+
 The system is composed of four core components:
 
 - **Redis (`6379`)**: The centralized, distributed state store that persists session data and tracks real-time node capacity and health.
