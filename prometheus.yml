@@ -1,0 +1,12 @@
+# prometheus.yml
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: 'scheduler'
+    static_configs:
+      # Use the docker-compose service name 'scheduler' and internal port 8001
+      - targets: ['scheduler:8001']
+  - job_name: 'node-manager'
+    static_configs:
+      # Use the docker-compose service name 'node-manager' and internal port 8002
+      - targets: ['node-manager:8002']

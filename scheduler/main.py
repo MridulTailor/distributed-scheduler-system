@@ -5,8 +5,12 @@ import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 import asyncpg
+import time
+from fastapi import Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from metrics import SCHEDULER_ALLOCATIONS_TOTAL, SCHEDULER_REJECTIONS_TOTAL, ALLOCATION_LATENCY_MS
 
-from config import REDIS_URL, NODE_MANAGER_URL, POSTGRES_URL
+from config import REDIS_URL, NODE_MANAGER_URL, POSTGRES_URL, RejectionReason, ErrorDetail
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,6 +32,14 @@ strategy = LeastLoadedStrategy()
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 @app.post("/sessions")
 async def create_session():
+    start_time = time.time()
+    try:
+        return await _create_session_internal()
+    finally:
+        latency_ms = (time.time() - start_time) * 1000
+        ALLOCATION_LATENCY_MS.observe(latency_ms)
+
+async def _create_session_internal():
     async with httpx.AsyncClient() as client:
         # 1. Fetch nodes
         try:
@@ -35,7 +47,8 @@ async def create_session():
             resp.raise_for_status()
         except Exception as e:
             logger.error("Failed to fetch nodes: %s", e)
-            raise HTTPException(status_code=500, detail="Failed to communicate with Node Manager")
+            SCHEDULER_REJECTIONS_TOTAL.labels(reason=RejectionReason.NODE_MANAGER_ERROR).inc()
+            raise HTTPException(status_code=500, detail=ErrorDetail.COMMUNICATION_FAILED)
             
         data = resp.json()
         nodes = data.get("nodes", [])
@@ -68,7 +81,8 @@ async def create_session():
                 continue
                 
         if not chosen_node_id:
-            raise HTTPException(status_code=503, detail="No available capacity in the cluster")
+            SCHEDULER_REJECTIONS_TOTAL.labels(reason=RejectionReason.NO_CAPACITY).inc()
+            raise HTTPException(status_code=503, detail=ErrorDetail.NO_CAPACITY)
             
         # 4. Generate session and store
         session_id = str(uuid.uuid4())
@@ -91,13 +105,14 @@ async def create_session():
             
         logger.info("Session %s allocated to %s", session_id, chosen_node_id)
         
+        SCHEDULER_ALLOCATIONS_TOTAL.inc()
         return session_data
 
 @app.delete("/sessions/{session_id}")
 async def delete_session(session_id: str):
     session_data = await redis_client.hgetall(f"session:{session_id}")
     if not session_data:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.SESSION_NOT_FOUND)
         
     node_id = session_data["nodeId"]
     
@@ -130,6 +145,10 @@ async def get_sessions():
         session_data = await redis_client.hgetall(key)
         sessions.append(session_data)
     return {"sessions": sessions}
+
+@app.get("/metrics")
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 if __name__ == "__main__":
     import uvicorn

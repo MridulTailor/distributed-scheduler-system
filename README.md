@@ -22,12 +22,14 @@ Although inspired by cloud gaming architectures, this pattern applies to any hig
 
 ![Architecture Diagram](docs/architecture.png)
 
-The system is composed of five core components:
+Core Components:
 - **Redis (`6379`)**: Centralized, fast operational state store that tracks real-time node capacity and active sessions.
 - **PostgreSQL (`5433`)**: Database that tracks the lifecycle of all sessions (creation and completion) without cluttering the operational state.
 - **Node Manager (`8002`)**: Owns the logic for the nodes. It exposes internal endpoints to allocate and release node capacity atomically via Redis Lua scripts.
 - **Scheduler (`8001`, replica on `8003`)**: Handles placement logic and session routing. It queries the Node Manager to find healthy nodes, secures the reservation, stores the active session in Redis, and asynchronously logs the lifecycle event to PostgreSQL. It is load-balanced by NGINX.
 - **Gateway (`8000`)**: A stateless public API proxy that forwards session requests (`POST`, `DELETE`, `GET`) to the internal Schedulers.
+- **Prometheus (`9090`)**: Centralized metrics server that scrapes data from the Node Manager and Scheduler to build a time-series database.
+- **Grafana (`3000`)**: Visualization platform connected to Prometheus, providing dashboards for cluster health and scheduler performance.
 
 ## Scheduling Strategies
 - **Least Loaded (Default)**: Chooses the node with the lowest utilization. Spreads load evenly but increases fragmentation.
@@ -49,6 +51,13 @@ Least Loaded               79.5%          High            0
 Most Available Capacity    75.4%          High            0         
 Best Fit                  100.0%          Low             0         
 ```
+
+## Monitoring
+
+**Prometheus** and **Grafana** provide real-time observability. Custom metrics track live node utilization, available healthy capacity, allocation success vs. rejection rates, and decision latency.
+
+![Grafana Dashboard](docs/grafana_dashboard.png)
+
 
 ## Run
 
